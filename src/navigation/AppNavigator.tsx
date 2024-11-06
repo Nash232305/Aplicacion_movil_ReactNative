@@ -6,7 +6,6 @@ import TransferScreen from '../screens/TransferScreen';
 import DetailsScreen from '../screens/DetailsScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 
-// Define el tipo Movement si aún no está definido o impórtalo de donde esté definido
 export interface Movement {
   id: string;
   name: string;

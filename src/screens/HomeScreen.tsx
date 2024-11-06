@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import {
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { getBalance, getMovements } from '../services/apiService';
+import { format, parseISO, isToday } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface Movement {
   id: string;
@@ -27,32 +30,77 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const [balance] = useState(36850.0);
-  const [movements] = useState<Movement[]>([
-    { id: '1', name: 'Arturo Robles', amount: -1850.0, date: 'Hoy 10:12 a.m.' },
-    { id: '2', name: 'Juan Fernandez', amount: -1850.0, date: 'Hoy 8:36 a.m.' },
-    { id: '3', name: 'Alberto Chaves', amount: -5200.0, date: 'Hoy 8:12 a.m.' },
-    { id: '4', name: 'Bernal Campos', amount: -28000.0, date: 'Hoy 8:00 a.m.' },
-    { id: '5', name: 'María Perez', amount: -1850.0, date: '11/10/22 11:30 a.m.' },
-  ]);
-
+  const [balance, setBalance] = useState<number | null>(null);
+  const [movements, setMovements] = useState<Movement[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [lastKey, setLastKey] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const translateY = useRef(new Animated.Value(0)).current;
   const balanceAnimation = useRef(new Animated.Value(1)).current;
+  const pageSize = 10; // Número de movimientos por página
 
-  const onRefresh = () => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
     setRefreshing(true);
-
-    // Animación de balance
-    Animated.sequence([
-      Animated.timing(balanceAnimation, { toValue: 1.2, duration: 200, useNativeDriver: true }),
-      Animated.timing(balanceAnimation, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
-
-    setTimeout(() => {
+    try {
+      // Obtén el balance
+      const fetchedBalance = await getBalance();
+      setBalance(fetchedBalance);
+  
+      // Llama a loadMovements para cargar todos los movimientos desde el principio
+      await loadMovements(); // Llama a loadMovements sin limpiar los movimientos antes
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
       setRefreshing(false);
-    }, 1500);
+    }
   };
+  
+  const loadMovements = async (isRefresh = false) => {
+    if (!hasMore && lastKey !== null) return; // Evita cargar si no hay más y no es una carga inicial
+  
+    try {
+      const { items: newMovements, lastEvaluatedKey } = await getMovements(isRefresh ? null : lastKey);
+  
+      // Combinar los movimientos previos con los nuevos sin duplicar, y ordenar del más reciente al más antiguo
+      setMovements((prevMovements) => {
+        const allMovements = isRefresh ? newMovements : [...prevMovements, ...newMovements];
+  
+        // Ordenar los movimientos por fecha de más reciente a más antiguo
+        const sortedMovements = allMovements
+          .filter((movement: { id: any; }, index: any, self: any[]) => index === self.findIndex((m) => m.id === movement.id))
+          .sort((a: { date: string | number | Date; }, b: { date: string | number | Date; }) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+        return sortedMovements;
+      });
+  
+      // Actualizar la clave para la paginación
+      setLastKey(lastEvaluatedKey);
+      setHasMore(Boolean(lastEvaluatedKey));
+    } catch (error) {
+      console.error('Error loading movements:', error);
+    }
+  };
+  
+  
+  const onEndReached = () => {
+    if (hasMore && !refreshing) {
+      loadMovements();
+    }
+  };
+  
+  const onRefresh = () => {
+    // Restablece lastKey y hasMore para forzar una recarga desde el principio
+    setLastKey(null);
+    setHasMore(true);
+    loadData(); // Llama a loadData sin vaciar los movimientos
+  };
+  
+  
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 20,
@@ -79,50 +127,61 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     })}`;
   };
 
-  const renderItem = ({ item }: { item: Movement }) => (
-    <TouchableOpacity
-      onPress={() => navigation.navigate('Details', { movement: item })}
-      style={styles.movementItem}
-    >
-      <View style={styles.movementInfo}>
-        <Text style={styles.movementText}>SINPE móvil - {item.name}</Text>
-        <Text style={styles.movementDate}>{item.date}</Text>
-      </View>
-      <Text style={styles.movementAmount}>
-        {item.amount < 0 ? '-' : ''}
-        {formatCurrency(Math.abs(item.amount))}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: Movement }) => {
+    const parsedDate = parseISO(item.date);
+    const formattedDate = isToday(parsedDate)
+      ? 'Hoy ' + format(parsedDate, 'hh:mm a', { locale: es })
+      : format(parsedDate, 'dd/MM/yy hh:mm a', { locale: es });
+
+    return (
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Details', { movement: item })}
+        style={styles.movementItem}
+      >
+        <View style={styles.movementInfo}>
+          <Text style={styles.movementText}>SINPE móvil - {item.name}</Text>
+          <Text style={styles.movementDate}>{formattedDate}</Text>
+        </View>
+        <Text style={styles.movementAmount}>
+          - {formatCurrency(Math.abs(item.amount))}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <ScrollView {...panResponder.panHandlers} showsVerticalScrollIndicator={false}>
-        {refreshing && <Text style={styles.refreshText}>Actualizando...</Text>}
-        <Image source={require('../path_to_image/wink_logo.png')} style={styles.logo} />
-        <Text style={styles.balanceTitle}>Cuenta Colones</Text>
-        <Text style={styles.subtitle}>Saldo disponible</Text>
-        <Animated.Text style={[styles.balance, { transform: [{ scale: balanceAnimation }] }]}>
-          {formatCurrency(balance)}
-        </Animated.Text>
-        <Text style={styles.question}>¿Qué querés hacer?</Text>
+      <View {...panResponder.panHandlers}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {refreshing && <Text style={styles.refreshText}>Actualizando...</Text>}
+          <Image source={require('../path_to_image/wink_logo.png')} style={styles.logo} />
+          <Text style={styles.balanceTitle}>Cuenta Colones</Text>
+          <Text style={styles.subtitle}>Saldo disponible</Text>
+          <Animated.Text style={[styles.balance, { transform: [{ scale: balanceAnimation }] }]}>
+            {balance !== null ? formatCurrency(balance) : 'Cargando...'}
+          </Animated.Text>
+          <Text style={styles.question}>¿Qué querés hacer?</Text>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Contacts')}>
-          <Image source={require('../path_to_image/sinpe_icon.png')} style={styles.sinpeIcon} />
-          <Text style={styles.sinpeText}>SINPE móvil</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Contacts')}>
+            <Image source={require('../path_to_image/sinpe_icon.png')} style={styles.sinpeIcon} />
+            <Text style={styles.sinpeText}>SINPE móvil</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.movementsTitle}>Movimientos</Text>
-      </ScrollView>
+          <Text style={styles.movementsTitle}>Movimientos</Text>
+        </ScrollView>
+      </View>
 
       <FlatList
         data={movements}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
       />
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -134,14 +193,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     color: '#4A90E2',
-    paddingTop: 9,
+    paddingTop: 39,
   },
   logo: {
     width: 500,
     height: 90,
     resizeMode: 'contain',
     alignSelf: 'center',
-    marginBottom: 50,
+    marginBottom: 30,
     transform: [{ translateY: 39 }],
   },
   balanceTitle: {
@@ -159,19 +218,19 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold',
     color: '#000',
-    marginBottom: 20,
+    marginBottom: 15,
   },
   question: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 1,
+    marginBottom: 5,
   },
   sinpeIcon: {
     width: 330,
     height: 65,
     resizeMode: 'contain',
     alignSelf: 'center',
-    marginBottom: 15,
+    marginBottom: 5,
   },
   sinpeText: {
     color: '#4A90E2',
@@ -180,14 +239,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: 50,
     lineHeight: 16,
-    marginBottom: 20,
     alignSelf: 'center',
   },
   movementsTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
-    
   },
   movementItem: {
     flexDirection: 'row',

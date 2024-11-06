@@ -23,7 +23,7 @@ interface PhoneNumber {
   interface Contact {
     id: string;
     name: string;
-    phoneNumbers: PhoneNumber[]; // Cambia a un array explícito de objetos PhoneNumber
+    phoneNumbers: PhoneNumber[]; 
   }
   
 
@@ -47,9 +47,9 @@ const ContactsScreen: React.FC<ContactsScreenProps> = ({ navigation }) => {
         // Verificar que el contacto tiene un nombre y al menos un número de teléfono
         if (contact.name && contact.phoneNumbers && contact.phoneNumbers.length > 0) {
           const formattedContact: Contact = {
-            id: contact.id || '', // Valor predeterminado en caso de undefined
+            id: contact.id || '', 
             name: contact.name,
-            phoneNumbers: contact.phoneNumbers as PhoneNumber[], // Aseguramos el tipo correcto aquí
+            phoneNumbers: contact.phoneNumbers as PhoneNumber[], 
           };
   
           const firstLetter = contact.name[0].toUpperCase();
@@ -69,7 +69,7 @@ const ContactsScreen: React.FC<ContactsScreenProps> = ({ navigation }) => {
         }));
   
       setContacts(sections);
-      setAllContacts(sections); // Guardamos todos los contactos para restablecer en la búsqueda
+      setAllContacts(sections); 
     }
   };
   
@@ -87,26 +87,23 @@ const ContactsScreen: React.FC<ContactsScreenProps> = ({ navigation }) => {
         .filter(section => section.data.length > 0);
       setContacts(filtered);
     } else {
-      setContacts(allContacts);  // Restablecemos la lista completa de contactos cuando se borra el query
+      setContacts(allContacts);  
     }
   };
 
   const renderContactItem = ({ item }: { item: Contact }) => {
-    // Función para formatear el número de teléfono
+   
     const formatPhoneNumber = (number: string) => {
-      const cleanedNumber = number.replace(/\D/g, ''); // Eliminar caracteres no numéricos
+      const cleanedNumber = number.replace(/\D/g, '');
   
-      // Si el número ya tiene el prefijo +506 y 11 dígitos en total, formateamos
       if (cleanedNumber.startsWith('506') && cleanedNumber.length === 11) {
         return `+506 ${cleanedNumber.slice(3, 7)}-${cleanedNumber.slice(7)}`;
       }
       
-      // Si el número tiene 8 dígitos (es local sin prefijo), le agregamos +506 y formateamos
       if (cleanedNumber.length === 8) {
         return `+506 ${cleanedNumber.slice(0, 4)}-${cleanedNumber.slice(4)}`;
       }
   
-      // Devolver el número tal cual si no cumple con las condiciones
       return number;
     };
   
@@ -192,7 +189,7 @@ const styles = StyleSheet.create({
     color: '#4A90E2',
     textAlign: 'center',
     flex: 1,
-    marginRight: 24, // Ajuste para centrar con el ícono de regreso
+    marginRight: 24, 
     marginBottom: 5,
   },
   searchContainer: {
@@ -217,12 +214,12 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     marginHorizontal: 20,
-    marginBottom: 10, // Espacio adicional debajo de la línea
+    marginBottom: 10, 
   },
   dividerLine: {
     height: 1.5,
     backgroundColor: '#e6e6e6',
-    marginBottom: 5, // Espacio entre la línea y el texto de la letra
+    marginBottom: 5, 
   },
   sectionHeaderText: {
     fontSize: 16,
@@ -259,9 +256,9 @@ const styles = StyleSheet.create({
   },
   contactNumber: {
     fontSize: 14,
-    color: '#A0A0A0', // Cambia a un gris claro similar al de la imagen
-    fontWeight: '500', // Ajusta el grosor si es necesario
-    marginTop: 2, // Añade un pequeño margen superior para separar del nombre
+    color: '#A0A0A0', 
+    fontWeight: '500', 
+    marginTop: 2, 
   },
   
 });

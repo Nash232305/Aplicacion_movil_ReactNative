@@ -1,8 +1,9 @@
 import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { getMovementDetails } from '../services/apiService'; // Importa la función desde apiService
 
 type DetailsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Details'>;
 type DetailsScreenRouteProp = RouteProp<RootStackParamList, 'Details'>;
@@ -12,8 +13,38 @@ type Props = {
   route: DetailsScreenRouteProp;
 };
 
+interface MovementDetails {
+  id: string;
+  fecha: string;
+  nombreContacto: string;
+  numeroContacto: string;
+  monto: number;
+  detalle: string;
+  tipoMovimiento: string;
+}
+
+
 const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const { movement } = route.params;
+  const [movementDetails, setMovementDetails] = useState<MovementDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMovementDetails = async () => {
+      try {
+        const data = await getMovementDetails(movement.id, movement.date);
+        setMovementDetails(data);
+      } catch (error) {
+        Alert.alert('Error', 'No se pudo cargar la información del movimiento');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchMovementDetails();
+  }, [movement.id, movement.date]);
+  
 
   const formatCurrency = (value: number) => {
     return `₡ ${Math.abs(value).toLocaleString('en-US', {
@@ -23,9 +54,16 @@ const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const formatPhoneNumber = (phoneNumber: string) => {
-    return `+${phoneNumber.slice(0, 3)} ${phoneNumber.slice(3, 7)}-${phoneNumber.slice(7)}`;
+    const cleanedNumber = phoneNumber.replace(/\D/g, ''); // Remover todos los caracteres que no sean dígitos
+    const isPrefixed = cleanedNumber.startsWith('506'); // Verificar si el número ya tiene el prefijo
+    
+    // Si el número ya tiene el prefijo +506, no agregarlo de nuevo
+    const fullNumber = isPrefixed ? cleanedNumber : `506${cleanedNumber}`;
+    
+    // Formatear el número en el formato +506 XXXX-XXXX
+    return `+${fullNumber.slice(0, 3)} ${fullNumber.slice(3, 7)}-${fullNumber.slice(7)}`;
   };
-
+  
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -36,17 +74,36 @@ const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
         date.getMonth() === today.getMonth() &&
         date.getFullYear() === today.getFullYear();
 
-      const options: Intl.DateTimeFormatOptions = isToday
-        ? { hour: 'numeric', minute: 'numeric', hour12: true }
-        : { day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true };
+      const options: Intl.DateTimeFormatOptions = {
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true,
+        ...(isToday ? {} : { day: 'numeric', month: 'long', year: 'numeric' })
+      };
 
-      return date.toLocaleDateString('es-CR', options);
+      return `${isToday ? 'Hoy' : ''} ${date.toLocaleTimeString('es-CR', options)}`.trim();
     } catch {
       return dateString;
     }
   };
 
-  const phoneNumber = formatPhoneNumber('50687536347'); // Número ficticio para mostrar el formato
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#4A90E2" />
+      </View>
+    );
+  }
+
+  if (!movementDetails) {
+    return (
+      <View style={styles.container}>
+        <TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
+          <Text style={styles.buttonText}>Volver</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -60,30 +117,30 @@ const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       <View style={styles.detailsContainer}>
         <View style={styles.contactIcon}>
           <Text style={styles.contactInitials}>
-            {movement.name.split(' ').map((n: string) => n[0]).join('')}
+            {movementDetails.nombreContacto.split(' ').map((n) => n[0]).join('')}
           </Text>
         </View>
-        <Text style={styles.movementTitle}>SINPE móvil - {movement.name}</Text>
-        <Text style={styles.amount}>{formatCurrency(movement.amount)}</Text>
+        <Text style={styles.movementTitle}>SINPE móvil - {movementDetails.nombreContacto}</Text>
+        <Text style={styles.amount}>{formatCurrency(movementDetails.monto)}</Text>
 
         <View style={styles.detailSection}>
           <Text style={styles.label}>Fecha</Text>
-          <Text style={styles.detailText}>{formatDate(movement.date)}</Text>
+          <Text style={styles.detailText}>{formatDate(movementDetails.fecha)}</Text>
         </View>
 
         <View style={styles.detailSection}>
           <Text style={styles.label}>Número de teléfono destino</Text>
-          <Text style={styles.detailText}>{phoneNumber}</Text>
+          <Text style={styles.detailText}>{formatPhoneNumber(movementDetails.numeroContacto)}</Text>
         </View>
 
         <View style={styles.detailSection}>
           <Text style={styles.label}>Descripción</Text>
-          <Text style={styles.detailText}>Transferencia SINPE móvil</Text>
+          <Text style={styles.detailText}>{movementDetails.detalle}</Text>
         </View>
 
         <View style={styles.detailSection}>
           <Text style={styles.label}>Tipo de movimiento</Text>
-          <Text style={styles.detailText}>SINPE móvil</Text>
+          <Text style={styles.detailText}>{movementDetails.tipoMovimiento}</Text>
         </View>
       </View>
 
@@ -147,7 +204,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#000',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   detailSection: {
     width: '100%',
