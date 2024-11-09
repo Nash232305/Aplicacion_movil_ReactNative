@@ -34,59 +34,46 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
     fetchBalance();
   }, []);
 
-  const handleConfirm = async () => {
+   const handleConfirm = async () => {
     if (!amount || !detail) {
-      Alert.alert('Error', 'Por favor, ingresa el monto y el detalle.');
-      return;
+        Alert.alert('Error', 'Por favor, ingresa el monto y el detalle.');
+        return;
     }
-  
-    // Remueve las comas y formatea el punto decimal correctamente
+
     const parsedAmount = parseFloat(amount.replace(/,/g, '').replace(/₡/g, ''));
-  
+
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Error', 'Por favor, ingresa un monto válido.');
-      return;
+        Alert.alert('Error', 'Por favor, ingresa un monto válido.');
+        return;
     }
-  
-    if (balance === null) {
-      Alert.alert('Error', 'No se pudo obtener el balance actual.');
-      return;
-    }
-  
-    if (balance <= 0) {
-      Alert.alert('Error', 'No tienes fondos suficientes.');
-      return;
-    }
-  
-    if (parsedAmount > balance) {
-      Alert.alert('Error', 'El monto excede tu balance disponible.');
-      return;
-    }
-  
+
     setLoading(true);
-  
+
     try {
-      // Llama a la API y espera una respuesta exitosa
-      const response = await createMovement({
-        nombreContacto: contact.name,
-        numeroContacto: contact.phoneNumber,
-        monto: parsedAmount,
-        detalle: detail,
-      });
-  
-      if (!response || response.error) {
-        throw new Error('Error al realizar la transferencia');
-      }
-  
-      Alert.alert('Éxito', 'La transferencia se ha realizado correctamente.');
-      navigation.navigate('Home'); // Regresar a la pantalla principal después de la transferencia
+        const response = await createMovement({
+            nombreContacto: contact.name,
+            numeroContacto: contact.phoneNumber,
+            monto: parsedAmount,
+            detalle: detail,
+        });
+
+        if (!response || response.error) {
+            const errorMessage =
+                response.error === 'Fondos insuficientes para realizar esta transferencia.'
+                    ? 'No tienes fondos suficientes.'
+                    : 'Hubo un problema al realizar la transferencia.';
+            throw new Error(errorMessage);
+        }
+
+        Alert.alert('Éxito', 'La transferencia se ha realizado correctamente.');
+        navigation.navigate('Home');
     } catch (error) {
-      Alert.alert('Error', 'Hubo un problema al realizar la transferencia.');
-      console.error(error);
+        Alert.alert('Error', (error as Error).message || 'Ocurrió un problema inesperado.');
+        console.error(error);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
   
 
   // Función para formatear el número de teléfono en el formato deseado
