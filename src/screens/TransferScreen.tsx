@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  ActivityIndicator,
+} from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp } from '@react-navigation/native';
-import { createMovement, getBalance } from '../services/apiService'; // Importa getBalance
+import { createMovement, getBalance } from '../services/apiService';
 
 type TransferScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Transfer'>;
 type TransferScreenRouteProp = RouteProp<RootStackParamList, 'Transfer'>;
@@ -19,6 +27,8 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
   const [amount, setAmount] = useState('');
   const [detail, setDetail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [modalMessage, setModalMessage] = useState<string | null>(null);
+  const [isError, setIsError] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
@@ -36,59 +46,73 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleConfirm = async () => {
     if (!amount || !detail) {
-      Alert.alert('Error', 'Por favor, ingresa el monto y el detalle.');
+      showMessage('Por favor, ingresa el monto y el detalle.', true);
       return;
     }
-  
-    // Remueve las comas y formatea el punto decimal correctamente
+
     const parsedAmount = parseFloat(amount.replace(/,/g, '').replace(/₡/g, ''));
-  
+
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Error', 'Por favor, ingresa un monto válido.');
+      showMessage('Por favor, ingresa un monto válido.', true);
       return;
     }
-  
+
     if (balance === null) {
-      Alert.alert('Error', 'No se pudo obtener el balance actual.');
+      showMessage('No se pudo obtener el balance actual.', true);
       return;
     }
-  
-    if (balance <= 0) {
-      Alert.alert('Error', 'No tienes fondos suficientes.');
-      return;
-    }
-  
+
     if (parsedAmount > balance) {
-      Alert.alert('Error', 'El monto excede tu balance disponible.');
+      showMessage('El monto excede tu balance disponible.', true);
       return;
     }
-  
+
     setLoading(true);
-  
+
     try {
-      // Llama a la API y espera una respuesta exitosa
       const response = await createMovement({
         nombreContacto: contact.name,
         numeroContacto: contact.phoneNumber,
         monto: parsedAmount,
         detalle: detail,
       });
-  
+
       if (!response || response.error) {
         throw new Error('Error al realizar la transferencia');
       }
-  
-      Alert.alert('Éxito', 'La transferencia se ha realizado correctamente.');
-      navigation.navigate('Home'); // Regresar a la pantalla principal después de la transferencia
+
+      // Añade un retraso antes de ocultar el modal de carga
+      setTimeout(() => {
+        setLoading(false);
+        showMessage('La transferencia se ha realizado correctamente.', false, true);
+      }, 2000); // Retraso adicional de 2 segundos
     } catch (error) {
-      Alert.alert('Error', 'Hubo un problema al realizar la transferencia.');
-      console.error(error);
-    } finally {
       setLoading(false);
+      showMessage('Hubo un problema al realizar la transferencia.', true);
+      console.error(error);
     }
   };
 
-  // Función para formatear el número de teléfono en el formato deseado
+  const showMessage = (message: string, isError: boolean, navigateAfter = false) => {
+    setModalMessage(message);
+    setIsError(isError);
+
+    if (!isError) {
+      setTimeout(() => {
+        setModalMessage(null);
+        setIsError(false);
+        if (navigateAfter) {
+          navigation.navigate('Home');
+        }
+      }, 3000);
+    }
+  };
+
+  const closeModal = () => {
+    setModalMessage(null);
+    setIsError(false);
+  };
+
   const formatPhoneNumber = (number: string) => {
     const cleanedNumber = number.replace(/\D/g, '');
     if (cleanedNumber.startsWith('506') && cleanedNumber.length === 11) {
@@ -99,7 +123,6 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
     return number;
   };
 
-  // Función para aplicar el formato con coma y punto al finalizar la entrada
   const applyFormat = () => {
     const cleanedValue = amount.replace(/[^0-9]/g, '');
     if (cleanedValue) {
@@ -115,7 +138,42 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      {/* Render de UI */}
+      {/* Modal de carga */}
+      {loading && (
+        <Modal transparent animationType="fade">
+          <View style={styles.loadingModal}>
+            <ActivityIndicator size="large" color="#4A90E2" />
+            <Text style={styles.loadingText}>Procesando transferencia...</Text>
+          </View>
+        </Modal>
+      )}
+
+      {/* Modal para mensajes */}
+      {modalMessage && (
+        <Modal transparent animationType="slide">
+          <View style={styles.modalContainer}>
+            <View
+              style={[
+                styles.modalContent,
+                { backgroundColor: isError ? '#FFEBEE' : '#E8F5E9' },
+              ]}
+            >
+              <Ionicons
+                name={isError ? 'alert-circle' : 'checkmark-circle'}
+                size={60}
+                color={isError ? '#E53935' : '#43A047'}
+              />
+              <Text style={styles.modalMessage}>{modalMessage}</Text>
+              {isError && (
+                <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
+                  <Text style={styles.closeButtonText}>Cerrar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#4A90E2" />
@@ -130,7 +188,9 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
         <View>
           <Text style={styles.contactName}>{contact.name}</Text>
-          <Text style={styles.contactNumber}>{formatPhoneNumber(contact.phoneNumber)}</Text>
+          <Text style={styles.contactNumber}>
+            {formatPhoneNumber(contact.phoneNumber)}
+          </Text>
         </View>
       </View>
 
@@ -141,7 +201,6 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
         keyboardType="numeric"
         value={amount}
         onChangeText={(text) => {
-          // Filtra caracteres no numéricos excepto el punto decimal
           const numericValue = text.replace(/[^0-9.]/g, '');
           setAmount(numericValue);
         }}
@@ -157,12 +216,14 @@ const TransferScreen: React.FC<Props> = ({ navigation, route }) => {
       />
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.confirmButtonText}>Confirmar</Text>
-          )}
+        <TouchableOpacity
+          style={styles.confirmButton}
+          onPress={handleConfirm}
+          disabled={loading}
+        >
+          <Text style={styles.confirmButtonText}>
+            {loading ? 'Procesando...' : 'Confirmar'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -250,6 +311,46 @@ const styles = StyleSheet.create({
     height: 50,
   },
   confirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loadingModal: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#fff',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalMessage: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginVertical: 10,
+  },
+  closeButton: {
+    marginTop: 20,
+    backgroundColor: '#4A90E2',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+  },
+  closeButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
