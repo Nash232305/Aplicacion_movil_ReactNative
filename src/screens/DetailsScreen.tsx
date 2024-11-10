@@ -3,7 +3,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { getMovementDetails } from '../services/apiService'; // Importa la función desde apiService
+import { getMovementDetails } from '../services/apiService';
+import { Ionicons } from '@expo/vector-icons';
 
 type DetailsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Details'>;
 type DetailsScreenRouteProp = RouteProp<RootStackParamList, 'Details'>;
@@ -23,7 +24,6 @@ interface MovementDetails {
   tipoMovimiento: string;
 }
 
-
 const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const { movement } = route.params;
   const [movementDetails, setMovementDetails] = useState<MovementDetails | null>(null);
@@ -33,37 +33,33 @@ const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     const fetchMovementDetails = async () => {
       try {
         const data = await getMovementDetails(movement.id, movement.date);
-        setMovementDetails(data);
+        setTimeout(() => {
+          setMovementDetails(data);
+          setLoading(false);
+        }, 200);
       } catch (error) {
         Alert.alert('Error', 'No se pudo cargar la información del movimiento');
         console.error(error);
-      } finally {
         setLoading(false);
       }
     };
-  
+
     fetchMovementDetails();
   }, [movement.id, movement.date]);
-  
 
   const formatCurrency = (value: number) => {
     return `₡ ${Math.abs(value).toLocaleString('en-US', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
     })}`;
   };
 
   const formatPhoneNumber = (phoneNumber: string) => {
-    const cleanedNumber = phoneNumber.replace(/\D/g, ''); // Remover todos los caracteres que no sean dígitos
-    const isPrefixed = cleanedNumber.startsWith('506'); // Verificar si el número ya tiene el prefijo
-    
-    // Si el número ya tiene el prefijo +506, no agregarlo de nuevo
+    const cleanedNumber = phoneNumber.replace(/\D/g, '');
+    const isPrefixed = cleanedNumber.startsWith('506');
     const fullNumber = isPrefixed ? cleanedNumber : `506${cleanedNumber}`;
-    
-    // Formatear el número en el formato +506 XXXX-XXXX
     return `+${fullNumber.slice(0, 3)} ${fullNumber.slice(3, 7)}-${fullNumber.slice(7)}`;
   };
-  
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -78,7 +74,8 @@ const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
         hour: 'numeric',
         minute: 'numeric',
         hour12: true,
-        ...(isToday ? {} : { day: 'numeric', month: 'long', year: 'numeric' })
+        // Quiero que se así 
+        ...(isToday ? {} : { day: 'numeric', month: 'long', year: 'numeric'})
       };
 
       return `${isToday ? 'Hoy' : ''} ${date.toLocaleTimeString('es-CR', options)}`.trim();
@@ -89,8 +86,9 @@ const DetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4A90E2" />
+        <Text style={styles.loadingText}>Cargando información...</Text>
       </View>
     );
   }
@@ -157,25 +155,38 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#fff',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#4A90E2',
+  },
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
     paddingTop: 40,
+    justifyContent: 'center',
   },
   backButtonContainer: {
-    paddingRight: 10,
+    position: 'absolute',
+    left: 0, 
+    top: 26,
+    zIndex: 1, 
   },
   backButton: {
-    fontSize: 24,
+    fontSize: 35,
     color: '#4A90E2',
   },
   header: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#4A90E2',
     textAlign: 'center',
-    flex: 1,
   },
   detailsContainer: {
     alignItems: 'center',
