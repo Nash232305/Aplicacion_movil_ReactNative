@@ -9,6 +9,7 @@ import {
   Animated,
   PanResponder,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -17,6 +18,7 @@ import { format, parseISO, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface Movement {
+  userId: string;
   id: string;
   name: string;
   amount: number;
@@ -33,74 +35,94 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [balance, setBalance] = useState<number | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
   const [lastKey, setLastKey] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const translateY = useRef(new Animated.Value(0)).current;
   const balanceAnimation = useRef(new Animated.Value(1)).current;
-  const pageSize = 10; // Número de movimientos por página
+
+  const animateBalance = () => {
+    Animated.sequence([
+      Animated.timing(balanceAnimation, {
+        toValue: 1.2,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(balanceAnimation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   useEffect(() => {
     loadData();
-  }, []);
+
+    // Ocultar el teclado al enfocar la pantalla
+    const keyboardHideListener = navigation.addListener('focus', () => {
+      Keyboard.dismiss();
+    });
+
+    return () => {
+      keyboardHideListener();
+    };
+  }, [navigation]);
 
   const loadData = async () => {
     setRefreshing(true);
     try {
-      // Obtén el balance
       const fetchedBalance = await getBalance();
       setBalance(fetchedBalance);
-  
-      // Llama a loadMovements para cargar todos los movimientos desde el principio
-      await loadMovements(); // Llama a loadMovements sin limpiar los movimientos antes
+      animateBalance(); // Llama a la animación cuando se actualiza el balance
+
+      await loadMovements(true); // Forzar recarga completa
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setRefreshing(false);
     }
   };
-  
+
   const loadMovements = async (isRefresh = false) => {
-    if (!hasMore && lastKey !== null) return; // Evita cargar si no hay más y no es una carga inicial
-  
+    if (!hasMore && !isRefresh) return;
+
     try {
       const { items: newMovements, lastEvaluatedKey } = await getMovements(isRefresh ? null : lastKey);
-  
-      // Combinar los movimientos previos con los nuevos sin duplicar, y ordenar del más reciente al más antiguo
+
       setMovements((prevMovements) => {
-        const allMovements = isRefresh ? newMovements : [...prevMovements, ...newMovements];
-  
-        // Ordenar los movimientos por fecha de más reciente a más antiguo
-        const sortedMovements = allMovements
-          .filter((movement: { id: any; }, index: any, self: any[]) => index === self.findIndex((m) => m.id === movement.id))
-          .sort((a: { date: string | number | Date; }, b: { date: string | number | Date; }) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  
+        const allMovements: Movement[] = isRefresh ? newMovements : [...prevMovements, ...newMovements];
+
+        // Eliminar duplicados usando un Map (clave única: `${userId}-${id}`)
+        const uniqueMovements: Movement[] = Array.from(
+          new Map(allMovements.map((item) => [`${item.userId}-${item.id}`, item])).values()
+        );
+
+        // Ordenar por fecha (más reciente primero)
+        const sortedMovements: Movement[] = uniqueMovements.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
         return sortedMovements;
       });
-  
-      // Actualizar la clave para la paginación
+
       setLastKey(lastEvaluatedKey);
       setHasMore(Boolean(lastEvaluatedKey));
     } catch (error) {
       console.error('Error loading movements:', error);
     }
   };
-  
-  
+
   const onEndReached = () => {
     if (hasMore && !refreshing) {
       loadMovements();
     }
   };
-  
+
   const onRefresh = () => {
-    // Restablece lastKey y hasMore para forzar una recarga desde el principio
     setLastKey(null);
     setHasMore(true);
-    loadData(); // Llama a loadData sin vaciar los movimientos
+    loadData();
   };
-  
-  
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 20,
@@ -174,20 +196,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <FlatList
         data={movements}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => `${item.userId}-${item.id}`} // Clave única para evitar duplicados
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
+        refreshing={refreshing}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {refreshing ? 'Cargando...' : 'No hay movimientos todavía.'}
+            </Text>
+          </View>
+        }
       />
     </View>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {
     padding: 20,
     backgroundColor: '#fff',
     flex: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
   },
   refreshText: {
     textAlign: 'center',
@@ -265,6 +300,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: 'red',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });
 
