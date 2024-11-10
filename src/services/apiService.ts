@@ -12,26 +12,28 @@ export const getBalance = async () => {
 };
 
 interface Movement {
-  id: string;
-  name: string;
-  amount: number;
-  date: string;
+  id: string; // default_user
+  name: string; // nombreContacto
+  amount: number; // monto
+  date: string; // fecha
+  userId: string; // El identificador único adicional
 }
 
-export const getMovements = async (lastEvaluatedKey: string | null = null) => {
+
+export const getMovements = async (lastEvaluatedKey: string | null = null, pageSize: number = 10) => {
   try {
     const url = `https://z755adyvuc.execute-api.us-east-2.amazonaws.com/dev/movements${lastEvaluatedKey ? `?lastEvaluatedKey=${lastEvaluatedKey}` : ''}`;
+  
     const response = await fetch(url);
     const data = await response.json();
-    
-    console.log('Movements fetched:', data); // Agrega este log para verificar los datos
-    
+
     return {
       items: data.items.map((item: any): Movement => ({
         id: item.id,
         name: item.nombreContacto,
         amount: item.monto,
         date: item.fecha, // Asegúrate de que el formato de fecha sea correcto
+        userId: item.userId, // Mapea correctamente el campo userId
       })),
       lastEvaluatedKey: data.lastEvaluatedKey,
     };
@@ -40,6 +42,7 @@ export const getMovements = async (lastEvaluatedKey: string | null = null) => {
     throw error;
   }
 };
+
 
 export const createMovement = async (movementData: {
   nombreContacto: string;
@@ -93,7 +96,6 @@ export const getMovementDetails = async (id: string, fecha: string): Promise<Mov
     );
     return response.data as MovementDetails; // Asegura que el tipo coincida
   } catch (error) {
-    console.error('Error fetching movement details:', error);
     throw error;
   }
 };
