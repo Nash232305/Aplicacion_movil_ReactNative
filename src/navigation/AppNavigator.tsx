@@ -1,4 +1,5 @@
-import React from 'react';
+import React as _React from 'react';
+
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 // Importa las herramientas necesarias de React Navigation para manejar la navegación entre pantallas.
