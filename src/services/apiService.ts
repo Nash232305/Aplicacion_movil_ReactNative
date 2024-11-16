@@ -28,7 +28,7 @@ export const getMovements = async (lastEvaluatedKey: string | null = null, _page
     const data = await response.json();
 
     return {
-      items: data.items.map((item: any): Movement => ({
+      items: data.items.map((item: ItemType): Movement => ({
         id: item.id,
         name: item.nombreContacto,
         amount: item.monto,
