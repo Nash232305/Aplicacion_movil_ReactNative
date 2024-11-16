@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { getMovementDetails } from '../services/apiService';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons as _Ionicons } from '@expo/vector-icons';
+
 
 type DetailsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Details'>;
 type DetailsScreenRouteProp = RouteProp<RootStackParamList, 'Details'>;
