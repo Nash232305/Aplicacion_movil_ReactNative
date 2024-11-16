@@ -20,7 +20,7 @@ interface Movement {
 }
 
 
-export const getMovements = async (lastEvaluatedKey: string | null = null, pageSize: number = 10) => {
+export const getMovements = async (lastEvaluatedKey: string | null = null, _pageSize: number = 10) => {
   try {
     const url = `https://z755adyvuc.execute-api.us-east-2.amazonaws.com/dev/movements${lastEvaluatedKey ? `?lastEvaluatedKey=${lastEvaluatedKey}` : ''}`;
   
